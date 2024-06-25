@@ -23,7 +23,7 @@ dependencies = [
     "tqdm == 4.*",
     "pyyaml == 6.*",
     "pymupdf == 1.24.*",
-    "scikit-learn == 1.4.*",
+    "scikit-learn == 1.5.*",
     "matplotlib == 3.8.*",
     "pyqt5 == 5.*",
 ]
