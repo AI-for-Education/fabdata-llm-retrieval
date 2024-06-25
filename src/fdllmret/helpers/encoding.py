@@ -40,9 +40,11 @@ class DocsetEncoding:
         chunk_size: Union[int, List[int]] = [200, 400, 600, 800, 1000],
         auto_tag: bool = False,
         auto_tag_parameters: dict = {"chunk_size": 800},
+        create_cache=True,
     ):
         self._cachedir = process_path(cachedir)
-        self._cachedir.mkdir(exist_ok=True, parents=True)
+        if create_cache:
+            self._cachedir.mkdir(exist_ok=True, parents=True)
         self.jsondata = None
         self.contents = None
         self.enc = None
@@ -71,8 +73,9 @@ class DocsetEncoding:
         }
         if not self._assert_cache_safe():
             raise ValueError("Cache settings don't match object settings")
-        with open(self.configfile, "w") as f:
-            yaml.safe_dump(self.config, f, sort_keys=False)
+        if create_cache:
+            with open(self.configfile, "w") as f:
+                yaml.safe_dump(self.config, f, sort_keys=False)
 
     def __getitem__(self, docid):
         doc = self._document(docid)
@@ -258,6 +261,7 @@ class DocsetEncoding:
         config_dict: Optional[dict] = None,
         extract=True,
         encode=True,
+        create_cache=True,
     ):
         if config_file is None and config_dict is None:
             raise ValueError("Must supply one of config_file or config_dict")
@@ -273,7 +277,11 @@ class DocsetEncoding:
         if config_dict is not None:
             cfg = config_dict
         out = cls(
-            **cfg["general"], **cfg["extraction"], **cfg["encoding"], **cfg["tagging"]
+            **cfg["general"],
+            **cfg["extraction"],
+            **cfg["encoding"],
+            **cfg["tagging"],
+            create_cache=create_cache,
         )
         if extract:
             out.extract()
@@ -293,7 +301,7 @@ class DocsetEncoding:
     async def from_datastore(cls, datastore):
         config = (await datastore.client.json().get("config", "$"))[0]
         out = DocsetEncoding.from_config(
-            config_dict=config, extract=False, encode=False
+            config_dict=config, extract=False, encode=False, create_cache=False
         )
         out.jsondata = (await datastore.client.json().get("fulldb", "$"))[0]
         out.contents = (await datastore.client.json().get("contents", "$"))[0]
