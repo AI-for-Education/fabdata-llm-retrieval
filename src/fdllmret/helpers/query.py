@@ -71,7 +71,8 @@ async def db_query(
         print([r.chunksize for r in out.results])
     if clean_results:
         out.results = [r for r in out.results if len(r.text.split()) > 0]
-        out.results = await remove_duplicate_results(out.results, verbose)
+        if out.results:
+            out.results = await remove_duplicate_results(out.results, verbose)
     return out
 
 
