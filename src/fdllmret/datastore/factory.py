@@ -2,7 +2,7 @@ from .datastore import DataStore
 import os
 
 
-async def get_datastore() -> DataStore:
+async def get_datastore(**client_kwargs) -> DataStore:
     datastore = os.environ.get("DATASTORE")
     assert datastore is not None
 
@@ -10,6 +10,6 @@ async def get_datastore() -> DataStore:
         case "redis":
             from .providers.redis_datastore import RedisDataStore
 
-            return await RedisDataStore.init()
+            return await RedisDataStore.init(**client_kwargs)
         case _:
             raise ValueError(f"Unsupported vector database: {datastore}")

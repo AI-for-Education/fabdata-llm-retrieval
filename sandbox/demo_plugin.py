@@ -1,5 +1,6 @@
 from pathlib import Path
 import asyncio
+import os
 
 from dotenv import load_dotenv
 
@@ -21,7 +22,12 @@ async def create_chatcontroller(caller="gpt-4-1106-preview"):
     with open(HERE / "contexts/context_searcher.txt") as f:
         msg = "\n".join(ln for ln in f if ln.strip() and ln.strip()[0] != "#")
     controller = ChatController(Caller=get_caller(caller), Sys_Msg={0: msg, -1: msg})
-    plugin, datastore = await retrieval_plugin()
+    plugin, datastore = await retrieval_plugin(
+        dbhost=os.environ.get("REDIS_HOST"),
+        dbport=os.environ.get("REDIS_PORT"),
+        dbssl=os.environ.get("REDIS_SSL"),
+        dbauth=os.environ.get("REDIS_PASSWORD"),
+    )
     controller.register_plugin(plugin)
     return controller, datastore
 
@@ -39,4 +45,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(main(), debug=True)

@@ -50,7 +50,7 @@ VECTOR_DIMENSION = 1536
 # RediSearch constants
 REDIS_REQUIRED_MODULES = [
     {"name": "search", "ver": 20600},
-    {"name": "ReJSON", "ver": 20404}
+    {"name": "ReJSON", "ver": 20404},
 ]
 REDIS_DEFAULT_ESCAPED_CHARS = re.compile(r"[,.<>{}\[\]\\\"\':;!@#$%^&*()\-+=~\/ ]")
 REDIS_SEARCH_SCHEMA = {
@@ -77,6 +77,7 @@ REDIS_SEARCH_SCHEMA = {
     ),
 }
 
+
 # Helper functions
 def unpack_schema(d: dict):
     for v in d.values():
@@ -85,17 +86,21 @@ def unpack_schema(d: dict):
         else:
             yield v
 
+
 async def _check_redis_module_exist(client: redis.Redis, modules: List[dict]):
 
     installed_modules = (await client.info()).get("modules", [])
     installed_modules = {module["name"]: module for module in installed_modules}
     for module in modules:
-        if module["name"] not in installed_modules or int(installed_modules[module["name"]]["ver"]) < int(module["ver"]):
-            error_message =  "You must add the RediSearch (>= 2.6) and ReJSON (>= 2.4) modules from Redis Stack. " \
+        if module["name"] not in installed_modules or int(
+            installed_modules[module["name"]]["ver"]
+        ) < int(module["ver"]):
+            error_message = (
+                "You must add the RediSearch (>= 2.6) and ReJSON (>= 2.4) modules from Redis Stack. "
                 "Please refer to Redis Stack docs: https://redis.io/docs/stack/"
+            )
             logging.error(error_message)
             raise ValueError(error_message)
-
 
 
 class RedisDataStore(DataStore):
@@ -109,7 +114,7 @@ class RedisDataStore(DataStore):
     ### Redis Helper Methods ###
 
     @classmethod
-    async def init(cls):
+    async def init(cls, **client_kwargs):
         """
         Setup the index if it does not exist.
         """
@@ -117,7 +122,10 @@ class RedisDataStore(DataStore):
             # Connect to the Redis Client
             logging.info("Connecting to Redis")
             client = redis.Redis(
-                host=REDIS_HOST, port=REDIS_PORT, password=REDIS_PASSWORD, ssl=REDIS_SSL
+                host=client_kwargs.get("redis_host", REDIS_HOST),
+                port=client_kwargs.get("redis_port", REDIS_PORT),
+                password=client_kwargs.get("redis_password", REDIS_PASSWORD),
+                ssl=client_kwargs.get("redis_ssl", REDIS_SSL),
             )
         except Exception as e:
             logging.error(f"Error setting up Redis: {e}")
@@ -226,14 +234,16 @@ class RedisDataStore(DataStore):
                         return f"@{typ.as_name}:[{num} +inf] "
                     case "end_date":
                         return f"@{typ.as_name}:[-inf {num}] "
-        
+
         def _append_filters(filter_str, filter, exclude):
             prefix = "-" if exclude else ""
             for field, value in filter.__dict__.items():
                 if not value:
                     continue
                 if field in REDIS_SEARCH_SCHEMA:
-                    filter_str += prefix + _typ_to_str(REDIS_SEARCH_SCHEMA[field], field, value)
+                    filter_str += prefix + _typ_to_str(
+                        REDIS_SEARCH_SCHEMA[field], field, value
+                    )
                 elif field in REDIS_SEARCH_SCHEMA["metadata"]:
                     if field == "source":  # handle the enum
                         value = value.value

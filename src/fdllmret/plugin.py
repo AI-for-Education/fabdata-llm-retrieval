@@ -9,18 +9,22 @@ from .helpers.encoding import DocsetEncoding
 
 async def retrieval_plugin(
     dbhost: Optional[str] = None,
-    dbport: Optional[str] = None,
-    dbssl: Optional[str] = None,
+    dbport: Optional[int] = None,
+    dbssl: Optional[bool] = None,
+    dbauth: Optional[str] = None,
     chunksizes: Optional[Union[int, List[int]]] = None,
 ):
+    client_kwargs = {}
     if dbhost is not None:
-        os.environ["REDIS_HOST"] = dbhost
+        client_kwargs["redis_host"] = dbhost
     if dbport is not None:
-        os.environ["REDIS_PORT"] = dbport
+        client_kwargs["redis_port"] = dbport
     if dbssl is not None:
-        os.environ["REDIS_SSL"] = dbssl
+        client_kwargs["redis_ssl"] = dbssl
+    if dbauth is not None:
+        client_kwargs["redis_password"] = dbauth
 
-    datastore = await get_datastore()
+    datastore = await get_datastore(**client_kwargs)
     docenc = await DocsetEncoding.from_datastore(datastore)
 
     if chunksizes is None:
