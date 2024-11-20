@@ -321,20 +321,11 @@ class DocsetEncoding:
                 pickle.dump(enc, f)
 
     def _process_folder(self, **kwargs):
-        if not self.jsondatafile.exists():
-            jsondata, contents = process_folder(**kwargs)
-            with open(self.jsondatafile, "w") as f:
-                json.dump(jsondata, f, indent=4)
-            with open(self.contentsfile, "w") as f:
-                json.dump(contents, f, indent=4)
-        else:
-            with open(self.jsondatafile) as f:
-                jsondata = json.load(f)
-            if self.contentsfile.exists():
-                with open(self.contentsfile) as f:
-                    contents = json.load(f)
-            else:
-                contents = {}
+        jsondata, contents = process_folder(self, **kwargs)
+        with open(self.jsondatafile, "w") as f:
+            json.dump(jsondata, f, indent=4)
+        with open(self.contentsfile, "w") as f:
+            json.dump(contents, f, indent=4)
         self.jsondata = jsondata
         self.contents = contents
 

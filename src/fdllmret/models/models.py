@@ -37,7 +37,7 @@ class DocumentChunkWithScore(DocumentChunk):
 
 class Document(BaseModel):
     id: Optional[str] = None
-    text: str
+    text: Optional[str]
     metadata: Optional[DocumentMetadata] = None
 
 

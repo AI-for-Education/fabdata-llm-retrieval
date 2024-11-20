@@ -24,6 +24,7 @@ from fdllm.sysutils import register_models
 
 
 def process_folder(
+    docenc,
     folder,
     n_jobs=1,
     extraction_model="gpt-4-1106-preview",
@@ -42,19 +43,31 @@ def process_folder(
         else:
             register_models(cmcfile)
 
-    if verbose > 0:
-        print("Extracting text from documents")
-    jsondata = extract_text_folders(
-        folders=folder, n_jobs=n_jobs, verbose=verbose, pdfengine=pdfengine
-    )
-    if verbose > 0:
-        print("Creating contents")
-    contents = create_contents(folders=folder)
+    if docenc.jsondatafile.exists():
+        with open(docenc.jsondatafile) as f:
+            jsondata = json.load(f)
+    else:
+        if verbose > 0:
+            print("Extracting text from documents")
+        jsondata = extract_text_folders(
+            folders=folder, n_jobs=n_jobs, verbose=verbose, pdfengine=pdfengine
+        )
+    if docenc.contentsfile.exists():
+        with open(docenc.contentsfile) as f:
+            contents = json.load(f)
+    else:
+        if verbose > 0:
+            print("Creating contents")
+        contents = create_contents(folders=folder)
     if extract_refs:
         if verbose > 0:
             print("Extracting references from text")
         extract_references(
-            jsondata, in_place=True, model=extraction_model, verbose=verbose
+            jsondata,
+            in_place=True,
+            model=extraction_model,
+            verbose=verbose,
+            cachefile=docenc.jsondatafile,
         )
     if download_refs:
         download_references(jsondata, in_place=True, verbose=verbose)
@@ -217,18 +230,13 @@ def create_contents(folders):
     return contents
 
 
-def extract_references(jsondata, in_place=True, model="gpt-4-1106-preview", verbose=0):
-    maxref = 30
-    caller = get_caller(model)
-    refs = []
-    if verbose > 0:
-        fileiter = tqdm(jsondata)
-    else:
-        fileiter = jsondata
-    for file in fileiter:
-        gotrefs = []
-        # i = 0
-        while True:
+def extract_references(
+    jsondata, in_place=True, model="gpt-4-1106-preview", verbose=0, cachefile=None
+):
+    ###################
+    def ref_getter(file):
+        def inner_loop(file, gotrefs):
+            looprefs = []
             # print(f"{file['filename']}: {i :03d}")
             # i += 1
             jsonin = {"document": file["text"][-60000:], "got_references": gotrefs}
@@ -249,36 +257,71 @@ def extract_references(jsondata, in_place=True, model="gpt-4-1106-preview", verb
                     }
                 ]
             }
-            resp = general_query(jsonin, jsonout, caller=caller)
-            if not resp["references"]:
-                break
-            # print(json.dumps(resp, indent=4))
-            gotrefs.extend(resp["references"])
-            gotrefs_ = []
-            for gr in gotrefs:
-                gr = {k: v for k, v in gr.items() if k != "count"}
-                if not any(gr_ == gr for gr_ in gotrefs_):
-                    gotrefs_.append(gr)
-            gotrefs = sorted(
-                gotrefs_,
-                key=lambda x: (
-                    (True, auth[0])
-                    if (auth := x["authors"]) is not None
-                    else (False, auth)
-                ),
+            resp = general_query(
+                jsonin, jsonout, caller=caller, response_format={"type": "json_object"}
             )
-            # with open(outfile, "w") as f:
-            #     json.dump(refs + gotrefs, f, indent=4)
-            if len(resp["references"]) < maxref:
-                break
-            # if max(ref["count"] for ref in gotrefs) < maxref * i:
-            #     break
-        refs.append(gotrefs)
+            if not resp["references"]:
+                return []
+            if verbose > 10:
+                print(json.dumps(resp, indent=4))
+            looprefs.extend(resp["references"])
+            looprefs_ = []
+            for lr in looprefs:
+                lr = {k: v for k, v in lr.items() if k != "count"}
+                if not any(lr == gr for gr in gotrefs):
+                    looprefs_.append(lr)
+            looprefs = looprefs_
+            # gotrefs = sorted(
+            #     gotrefs_,
+            #     key=lambda x: (
+            #         (True, auth[0])
+            #         if (auth := x["authors"]) is not None
+            #         else (False, auth)
+            #     ),
+            # )
+            return looprefs
 
-    if in_place:
-        for ref, file in zip(refs, jsondata):
-            file["refs"] = ref
+        gotrefs = []
+        # i = 0
+        while True:
+            looprefs = inner_loop(file, gotrefs)
+            ### give it 3 tries to be sure if there are less than maxref refs in
+            ### last iteration
+            trycnt = 0
+            while len(looprefs) < maxref:
+                if trycnt > 2:
+                    break
+                looprefs_ = inner_loop(file, gotrefs)
+                if len(looprefs_) > len(looprefs):
+                    looprefs = looprefs_
+                trycnt += 1
+            ###
+            gotrefs.extend(looprefs)
+            if len(looprefs) < maxref:
+                break
+        return gotrefs
+
+    maxref = 30
+    caller = get_caller(model)
+    refs = []
+    if verbose > 0:
+        fileiter = tqdm(jsondata)
     else:
+        fileiter = jsondata
+    for file in fileiter:
+        if cachefile is not None:
+            with open(cachefile, "w") as f:
+                json.dump(jsondata, f, indent=4)
+        if file["text"] is None or file.get("refs") is not None:
+            continue
+        gotrefs = ref_getter(file)
+
+        if in_place:
+            file["refs"] = gotrefs
+        else:
+            refs.append(gotrefs)
+
+    if not in_place:
         return refs
 
 
