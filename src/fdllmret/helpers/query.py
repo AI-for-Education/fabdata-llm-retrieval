@@ -100,16 +100,20 @@ def format_query_results(results):
         else:
             break
     res = res_
-    respd = defaultdict(lambda: {"id": None, "chunks": []})
+    respd = defaultdict(lambda: {"chunks": []})
     for r in res:
-        respd[r.metadata.filename]["id"] = r.metadata.document_id
-        respd[r.metadata.filename]["url"] = r.metadata.url
-        respd[r.metadata.filename]["chunks"].append(r.text)
+        respd[r.metadata.document_id]["document ID"] = r.metadata.document_id
+        respd[r.metadata.document_id]["title"] = r.metadata.title
+        respd[r.metadata.document_id]["author"] = r.metadata.author
+        respd[r.metadata.document_id]["abstract"] = r.metadata.abstract
+        respd[r.metadata.document_id]["published_in"] = r.metadata.published_in
+        respd[r.metadata.document_id]["year"] = r.metadata.year
+        respd[r.metadata.document_id]["url"] = r.metadata.url
+        respd[r.metadata.document_id]["chunks"].append(r.text)
     resp = ""
     for filename, filed in respd.items():
-        resp += f"filename: {filename}\n"
-        resp += f"document ID: {filed['id']}\n"
-        resp += f"url: {filed['url']}\n"
+        for key, val in filed.items():
+            resp += f"{key}: {val}\n"
         for i, chunk in enumerate(filed["chunks"]):
             resp += f"chunk_{i :03d}: {chunk}\n"
         resp += "\n\n"

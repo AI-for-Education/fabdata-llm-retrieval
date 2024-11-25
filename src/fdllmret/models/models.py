@@ -13,8 +13,11 @@ class DocumentMetadata(BaseModel):
     source: Optional[Source] = None
     source_id: Optional[str] = None
     url: Optional[str] = None
-    created_at: Optional[str] = None
+    year: Optional[str] = None
+    title: Optional[str] = None
     author: Optional[str] = None
+    abstract: Optional[str] = None
+    published_in: Optional[str] = None
     filename: Optional[str] = None
     tag: Optional[str] = None
 
@@ -37,7 +40,7 @@ class DocumentChunkWithScore(DocumentChunk):
 
 class Document(BaseModel):
     id: Optional[str] = None
-    text: Optional[str]
+    text: str
     metadata: Optional[DocumentMetadata] = None
 
 
@@ -47,15 +50,17 @@ class DocumentWithChunks(Document):
 
 class DocumentMetadataFilter(BaseModel):
     document_id: Optional[str] = None
-    source: Optional[Source] = None
     source_id: Optional[str] = None
+    source: Optional[Source] = None
+    title: Optional[str] = None
     author: Optional[str] = None
-    filename: Optional[str] = None
-    url: Optional[str] = None
+    year: Optional[str] = None
+    # filename: Optional[str] = None
+    # url: Optional[str] = None
     tag: Optional[str] = None
     chunksize: Optional[str] = None
-    start_date: Optional[str] = None  # any date string format
-    end_date: Optional[str] = None  # any date string format
+    # start_date: Optional[str] = None  # any date string format
+    # end_date: Optional[str] = None  # any date string format
 
 
 class Query(BaseModel):

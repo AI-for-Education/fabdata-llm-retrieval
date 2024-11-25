@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 
 from ..models.models import Document, DocumentMetadata, Optional
 from ..services.chunks import get_document_chunks, CHUNK_SIZE
-from .extraction import process_folder, process_path
+from .extraction import process_folder, process_path, load_jsondata, save_jsondata
 from .analysis import auto_tag_generate
 
 
@@ -34,6 +34,7 @@ class DocsetEncoding:
         download_refs: bool = False,
         n_jobs: int = -1,
         pdfengine: Literal["fitz", "pypdf"] = "fitz",
+        exts: list[str] = [".pdf"],
         embeddingsengine: Literal["openai_ada-002"] = "openai_ada-002",
         extraction_model: str = "gpt-4-1106-preview",
         custom_models_config: Optional[PATHTYPE] = None,
@@ -61,6 +62,7 @@ class DocsetEncoding:
                 n_jobs=n_jobs,
                 pdfengine=pdfengine,
                 extraction_model=extraction_model,
+                exts=exts,
             ),
             "encoding": dict(
                 embeddingsengine=embeddingsengine,
@@ -94,29 +96,7 @@ class DocsetEncoding:
                 raise IndexError(f"Invalid index")
             elif len(item) > 1:
                 raise IndexError(f"{docid} must be unique")
-        id_ = item.get("id", None)
-        text = item.get("text", None)
-        source = item.get("source", None)
-        source_id = item.get("source_id", None)
-        url = item.get("url", None)
-        created_at = item.get("created_at", None)
-        author = item.get("author", None)
-        filename = item.get("filename", None)
-        tag = item.get("tag", None)
-        metadata = DocumentMetadata(
-            source=source,
-            source_id=source_id,
-            url=url,
-            created_at=created_at,
-            author=author,
-            filename=filename,
-            tag=tag,
-        )
-        return Document(
-            id=id_,
-            text=text,
-            metadata=metadata,
-        )
+        return create_document(item)
 
     def extract(self):
         if not self._assert_cache_safe():
@@ -226,7 +206,7 @@ class DocsetEncoding:
 
     @property
     def jsondatafile(self):
-        return self._cachedir / "jsondata.json"
+        return self._cachedir / "jsondata"
 
     @property
     def contentsfile(self):
@@ -310,8 +290,7 @@ class DocsetEncoding:
     def to_cache(self):
         with open(self.contentsfile, "w") as f:
             json.dump(self.contents, f)
-        with open(self.jsondatafile, "w") as f:
-            json.dump(self.jsondata, f)
+        save_jsondata(self.jsondata, self.jsondatafile)
         for chunk_size in self.docembs.chunk_sizes:
             enc = {
                 key: [chunk for chunk in val if f"_{chunk_size}_" in chunk.id]
@@ -322,8 +301,7 @@ class DocsetEncoding:
 
     def _process_folder(self, **kwargs):
         jsondata, contents = process_folder(self, **kwargs)
-        with open(self.jsondatafile, "w") as f:
-            json.dump(jsondata, f, indent=4)
+        save_jsondata(jsondata, self.jsondatafile)
         with open(self.contentsfile, "w") as f:
             json.dump(contents, f, indent=4)
         self.jsondata = jsondata
@@ -545,21 +523,12 @@ def encode_documents_json(
 def create_document(docjson):
     id = docjson.get("id", str(uuid.uuid4()))
     text = docjson.get("text", None)
-    source = docjson.get("source", None)
-    source_id = docjson.get("source_id", None)
-    url = docjson.get("url", None)
-    created_at = docjson.get("created_at", None)
-    author = docjson.get("author", None)
-    filename = docjson.get("filename", None)
-    tag = docjson.get("tag", None)
     metadata = DocumentMetadata(
-        source=source,
-        source_id=source_id,
-        url=url,
-        created_at=created_at,
-        author=author,
-        filename=filename,
-        tag=tag,
+        source=docjson.get("source"),
+        source_id=docjson.get("source_id"),
+        filename=docjson.get("filename"),
+        tag=docjson.get("tag"),
+        **docjson.get("metadata", {}),
     )
 
     # create a document object with the id or a random id, text and metadata

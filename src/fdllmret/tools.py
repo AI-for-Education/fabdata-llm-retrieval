@@ -3,6 +3,7 @@ from typing import Dict, List
 
 from fdllm.tooluse import Tool, ToolParam, ToolItem
 from pydantic import Field
+from fuzzywuzzy import fuzz, process
 
 from .datastore.datastore import DataStore
 from .helpers import db_query, suppmat_query, format_query_results
@@ -150,8 +151,8 @@ class QuerySuppMat(Tool):
     top_k: int = 80
     clean_results: bool = True
     verbose: int = 0
-    tags: List[str] = Field(default_factory=lambda:["supporting material"])
-    chunksizes: List[int] = Field(default_factory=lambda:[1000])
+    tags: List[str] = Field(default_factory=lambda: ["supporting material"])
+    chunksizes: List[int] = Field(default_factory=lambda: [1000])
 
     def execute(self, **params):
         return super().execute(**params)
@@ -167,3 +168,25 @@ class QuerySuppMat(Tool):
             **params,
         )
         return json.dumps(format_query_results(out))
+
+
+class FullText(Tool):
+    name = "full_text"
+    description = "Return the full text of a document by its ID"
+    params = {
+        "ID": ToolParam(
+            type="string", description="ID of document to return", required=True
+        )
+    }
+    json_database: Dict | List[Dict]
+
+    def execute(self, **params):
+        return super().execute(**params)
+
+    async def aexecute(self, **params):
+        ft = [rec for rec in self.json_database if rec["id"] == params["ID"]][0]
+        if len(ft["text"]) > 60000:
+            ft["text"] = ft["text"][:60000] + "..."
+            
+        return json.dumps(ft)
+

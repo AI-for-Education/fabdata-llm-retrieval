@@ -13,6 +13,7 @@ from types import SimpleNamespace
 import copy
 import multiprocessing as mp
 import platform
+import time
 
 from tqdm import tqdm
 from pypdf import PdfReader
@@ -21,6 +22,7 @@ from joblib import Parallel, delayed
 from fdllm import get_caller
 from fdllm.extensions import general_query
 from fdllm.sysutils import register_models
+from bs4 import BeautifulSoup
 
 
 def process_folder(
@@ -33,6 +35,7 @@ def process_folder(
     custom_models_config=None,
     verbose=10,
     pdfengine="pypdf",
+    exts=[".pdf"],
 ):
     if not isinstance(folder, list):
         folder = [folder]
@@ -43,15 +46,17 @@ def process_folder(
         else:
             register_models(cmcfile)
 
-    if docenc.jsondatafile.exists():
-        with open(docenc.jsondatafile) as f:
-            jsondata = json.load(f)
-    else:
-        if verbose > 0:
-            print("Extracting text from documents")
-        jsondata = extract_text_folders(
-            folders=folder, n_jobs=n_jobs, verbose=verbose, pdfengine=pdfengine
-        )
+    jsondata = load_jsondata(docenc.jsondatafile)
+    if verbose > 0:
+        print("Extracting text from documents")
+    jsondata = extract_text_folders(
+        jsondata,
+        folders=folder,
+        n_jobs=n_jobs,
+        verbose=verbose,
+        pdfengine=pdfengine,
+        exts=exts,
+    )
     if docenc.contentsfile.exists():
         with open(docenc.contentsfile) as f:
             contents = json.load(f)
@@ -75,6 +80,30 @@ def process_folder(
     return jsondata, contents
 
 
+def load_jsondata(jsondatafolder):
+    if isinstance(jsondatafolder, str):
+        jsondatafolder = Path(jsondatafolder).resolve()
+    jsondatafiles = sorted(jsondatafolder.glob("*.json"))
+    jsondata = []
+    for file in jsondatafiles:
+        with open(file, encoding="utf-8") as f:
+            jsondata.append(json.load(f))
+    return jsondata
+
+
+def save_jsondata(jsondata, jsondatafolder):
+    if isinstance(jsondatafolder, str):
+        jsondatafolder = Path(jsondatafolder).resolve()
+    jsondatafolder.mkdir(exist_ok=True, parents=True)
+    jsondatafiles = sorted(jsondatafolder.glob("*.json"))
+    for file in jsondatafiles:
+        file.unlink()
+    for jsondata_ in jsondata:
+        file = jsondatafolder / (jsondata_["filename"] + ".json")
+        with open(file, "w", encoding="utf-8") as f:
+            json.dump(jsondata_, f, ensure_ascii=False, indent=2)
+
+
 def process_path(path):
     path = Path(path)
     pathparts = [Path.home() if part == "~" else part for part in path.parts]
@@ -84,14 +113,25 @@ def process_path(path):
 def filesgen(path, exts):
     path = Path(path)
     tags = _load_tags(path)
+    metad = _load_metad(path)
     for fl in path.rglob("*"):
         if fl.suffix in exts:
             relfl = fl.relative_to(path)
-            yield fl, relfl.parent, _check_tags(relfl, tags)
+            yield fl, relfl.parent, _check_tags(relfl, tags), _check_metad(relfl, metad)
 
 
 def _check_tags(fl, tags):
     return [tag for tag, pats in tags.items() if any(fnmatch(fl, pat) for pat in pats)]
+
+
+def _check_metad(fl, metad):
+    metakey = [pat for pat in metad if fnmatch(fl, pat)]
+    if len(metakey) > 1:
+        raise
+    elif len(metakey) == 0:
+        return {}
+    else:
+        return metad[metakey[0]]
 
 
 def _load_tags(path):
@@ -113,10 +153,36 @@ def _load_tags(path):
         return {}
 
 
+def _load_metad(path):
+    metadfile = path / "metadata.json"
+    if metadfile.exists():
+        with open(metadfile) as f:
+            metad = json.load(f)
+            return metad
+    else:
+        return {}
+
+
+def _extract_text_html(file):
+    if isinstance(file, str):
+        with StringIO(file) as f:
+            return _extract_text_html(f)
+    else:
+        if hasattr(file, "name"):
+            name = file.name
+        else:
+            name = None
+        with open(file) as f:
+            content = f.read()
+            soup = BeautifulSoup(content, "lxml")
+            text = soup.text
+        return name, text
+
+
 def _extract_text_pdf(file, engine="pypdf"):
     if isinstance(file, str):
         with StringIO(file) as f:
-            return _extract_text_pdf(f)
+            return _extract_text_pdf(f, engine)
     else:
         if hasattr(file, "name"):
             name = file.name
@@ -132,22 +198,24 @@ def _extract_text_pdf(file, engine="pypdf"):
         return name, text
 
 
-def extract_text(file, exts, parent, tags, pdfengine="pypdf"):
+def extract_text(file, exts, parent, pdfengine="pypdf"):
     try:
         if file.suffix in [".pdf"]:
             name, text = _extract_text_pdf(file, pdfengine)
+        elif file.suffix in [".html"]:
+            name, text = _extract_text_html(file)
         elif file.suffix == ".zip":
             with ZipFile(file, mode="r") as zf, TemporaryDirectory() as td:
                 zf.extractall(td)
                 return [
-                    extract_text(fl, exts, parent_)
+                    extract_text(fl, exts, parent_, pdfengine)
                     for fl, parent_ in filesgen(td, exts)
                 ]
         else:
             warnings.warn(f"{file} not supported filetype")
-        return name, text, file.suffix, parent, tags
+        return name, text, file.suffix, parent
     except Exception as err:
-        return file.name, None, file.suffix, parent, tags
+        return file.name, None, file.suffix, parent
 
 
 def _flattener(pages, allflatpages=[]):
@@ -162,7 +230,7 @@ def _flattener(pages, allflatpages=[]):
 
 
 def extract_text_folders(
-    folders, n_jobs=1, exts=[".pdf"], pdfengine="pypdf", verbose=0
+    jsondata, folders, n_jobs=1, exts=[".pdf"], pdfengine="pypdf", verbose=0
 ):
     if n_jobs == -1 and platform.system() == "Windows":
         n_jobs = min(mp.cpu_count(), 61)
@@ -170,36 +238,49 @@ def extract_text_folders(
 
     fgen = list(chain(*[filesgen(dp, exts) for dp in datapath]))
 
-    batch_size = "auto"
-    if n_jobs == 0:
-        raise ValueError("njobs can't be 0")
-    elif n_jobs != 1:
-        p = Parallel(n_jobs=n_jobs, verbose=verbose, batch_size=batch_size)
-        pages = p(
-            delayed(extract_text)(file, exts, parent, tags, pdfengine)
-            for file, parent, tags in fgen
-        )
+    if verbose > 0:
+        flist = tqdm(list(fgen))
     else:
-        if verbose > 0:
-            flist = tqdm(list(fgen))
+        flist = fgen
+    pages = []
+    for file, parent, tags, metad in flist:
+        gotjsondata = [jsd for jsd in jsondata if jsd.get("filename", "") == file.name]
+        if len(gotjsondata) > 1:
+            raise ValueError("duplicate files in jsondata")
+        elif len(gotjsondata) == 0 or not gotjsondata[0].get("text"):
+            page = (
+                *extract_text(file, exts, parent, pdfengine),
+                tags,
+                metad,
+                [],
+                str(uuid.uuid4()),
+            )
         else:
-            flist = fgen
-        pages = (
-            extract_text(file, exts, parent, tags, pdfengine)
-            for file, parent, tags in flist
-        )
+            page = (
+                file.name,
+                gotjsondata[0].get("text"),
+                file.suffix,
+                parent,
+                tags,
+                metad,
+                gotjsondata[0].get("refs", []),
+                gotjsondata[0]["id"],
+            )
+        pages.append(page)
 
-    flatpages = _flattener(pages)
     jsondata = []
-    for key, pagestext, suffix, parent, tags in flatpages:
+    flatpages = _flattener(pages)
+    for key, pagestext, suffix, parent, tags, metad, refs, id in flatpages:
         name = name = (parent / key).as_posix()
         jsondata.append(
             {
-                "id": str(uuid.uuid4()),
+                "id": id,
                 "text": pagestext,
                 "source": "file",
                 "filename": name,
                 "tag": ",".join(tags),
+                "metadata": metad,
+                "refs": refs,
             }
         )
     # insert urls
@@ -309,15 +390,17 @@ def extract_references(
     else:
         fileiter = jsondata
     for file in fileiter:
-        if cachefile is not None:
-            with open(cachefile, "w") as f:
-                json.dump(jsondata, f, indent=4)
         if file["text"] is None or file.get("refs") is not None:
+            time.sleep(0.0001)
             continue
         gotrefs = ref_getter(file)
 
         if in_place:
             file["refs"] = gotrefs
+            if cachefile is not None:
+                filename = cachefile / (file["filename"] + ".json")
+                with open(filename, "w") as f:
+                    json.dump(file, f, indent=4)
         else:
             refs.append(gotrefs)
 

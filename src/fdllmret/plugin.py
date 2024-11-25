@@ -54,6 +54,7 @@ class RetrievalPlugin(ToolUsePlugin):
         tools = [
             QueryCatalogue(datastore=datastore, tags=tags, chunksizes=chunksizes),
             GetReferences(json_database=json_database),
+            FullText(json_database=json_database),
         ]
         if json_contents:
             tools.append(GetContents(json_contents=json_contents))
