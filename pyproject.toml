@@ -15,7 +15,7 @@ dependencies = [
     "python-dotenv == 1.*",
     "pydantic == 2.*",
     "tenacity == 8.*",
-    "numpy == 1.26.*",
+    "numpy",
     "arrow == 1.*",
     "redis == 4.*",
     "joblib == 1.*",
