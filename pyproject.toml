@@ -27,5 +27,5 @@ dependencies = [
     "matplotlib >=3.8, < 4",
     "pyqt5 == 5.*",
     "fuzzywuzzy[speedup] < 1",
-    "bs4 == 4.*"
+    "beautifulsoup4 == 4.*"
 ]
