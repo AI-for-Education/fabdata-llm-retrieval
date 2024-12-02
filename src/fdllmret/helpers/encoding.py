@@ -75,9 +75,9 @@ class DocsetEncoding:
                 auto_tag_parameters=auto_tag_parameters,
             ),
         }
-        if not self._assert_cache_safe():
-            raise ValueError("Cache settings don't match object settings")
         if create_cache:
+            if not self._assert_cache_safe():
+                raise ValueError("Cache settings don't match object settings")
             with open(self.configfile, "w") as f:
                 yaml.safe_dump(self.config, f, sort_keys=False)
 
