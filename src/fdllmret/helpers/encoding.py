@@ -43,8 +43,8 @@ class DocsetEncoding:
         auto_tag_parameters: dict = {"chunk_size": 800},
         create_cache=True,
     ):
-        self._cachedir = process_path(cachedir)
         if create_cache:
+            self._cachedir = process_path(cachedir)
             self._cachedir.mkdir(exist_ok=True, parents=True)
         self.jsondata = None
         self.contents = None
@@ -202,15 +202,19 @@ class DocsetEncoding:
 
     @property
     def configfile(self):
-        return self._cachedir / "config.yml"
+        if self._cachedir is not None:
+            return self._cachedir / "config.yml"
+        
 
     @property
     def jsondatafile(self):
-        return self._cachedir / "jsondata"
+        if self._cachedir is not None:
+            return self._cachedir / "jsondata"
 
     @property
     def contentsfile(self):
-        return self._cachedir / "contents.json"
+        if self._cachedir is not None:
+            return self._cachedir / "contents.json"
 
     @property
     def tags(self):
