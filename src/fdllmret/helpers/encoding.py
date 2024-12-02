@@ -46,6 +46,8 @@ class DocsetEncoding:
         if create_cache:
             self._cachedir = process_path(cachedir)
             self._cachedir.mkdir(exist_ok=True, parents=True)
+        else:
+            self._cachedir = None
         self.jsondata = None
         self.contents = None
         self.enc = None
