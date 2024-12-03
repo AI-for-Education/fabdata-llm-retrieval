@@ -202,6 +202,8 @@ def extract_text(file, exts, parent, pdfengine="pypdf"):
     try:
         if file.suffix in [".pdf"]:
             name, text = _extract_text_pdf(file, pdfengine)
+        elif file.suffix in [".docx"]:
+            name, text = _extract_text_pdf(file, "fitz")
         elif file.suffix in [".html"]:
             name, text = _extract_text_html(file)
         elif file.suffix == ".zip":
