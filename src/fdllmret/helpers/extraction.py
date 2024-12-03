@@ -197,6 +197,19 @@ def _extract_text_pdf(file, engine="pypdf"):
             raise NotImplementedError("Invalid reader")
         return name, text
 
+def _extract_text_txt(file):
+    if isinstance(file, str):
+        with StringIO(file) as f:
+            return _extract_text_html(f)
+    else:
+        if hasattr(file, "name"):
+            name = file.name
+        else:
+            name = None
+        with open(file) as f:
+            text = f.read()
+        return name, text
+
 
 def extract_text(file, exts, parent, pdfengine="pypdf"):
     try:
@@ -206,6 +219,8 @@ def extract_text(file, exts, parent, pdfengine="pypdf"):
             name, text = _extract_text_pdf(file, "fitz")
         elif file.suffix in [".html"]:
             name, text = _extract_text_html(file)
+        elif file.suffix in [".txt"]:
+            name, text = _extract_text_txt(file)
         elif file.suffix == ".zip":
             with ZipFile(file, mode="r") as zf, TemporaryDirectory() as td:
                 zf.extractall(td)
