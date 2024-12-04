@@ -7,10 +7,10 @@ packages = [{include = "src"}]
 
 [project]
 name = "fabdata-llm-retrieval"
-version = "0.8.6"
+version = "0.8.7"
 requires-python = ">=3.8, <=3.13"
 dependencies = [
-    "fabdata-llm @ git+https://github.com/AI-for-Education/fabdata-llm.git@v0.22.3",
+    "fabdata-llm @ git+https://github.com/AI-for-Education/fabdata-llm.git@v0.22.4",
     "redis-stack-server-aci @ git+https://github.com/AI-for-Education/redis-stack-server-ACI@v0.1.2",
     "python-dotenv == 1.*",
     "pydantic == 2.*",
