@@ -71,6 +71,7 @@ class QueryCatalogue(Tool):
 
     datastore: DataStore
     top_k: int = 80
+    thresh: float = 1.0
     clean_results: bool = True
     verbose: int = 0
 
@@ -84,7 +85,7 @@ class QueryCatalogue(Tool):
             clean_results=self.clean_results,
             **params,
         )
-        return json.dumps(format_query_results(out.results))
+        return json.dumps(format_query_results(out.results, self.thresh))
 
 
 class GetContents(Tool):
@@ -149,6 +150,7 @@ class QuerySuppMat(Tool):
     datastore: DataStore
     json_database: Dict | List[Dict]
     top_k: int = 80
+    thresh: float = 1.0
     clean_results: bool = True
     verbose: int = 0
     tags: List[str] = Field(default_factory=lambda: ["supporting material"])
@@ -167,7 +169,7 @@ class QuerySuppMat(Tool):
             chunksizes=self.chunksizes,
             **params,
         )
-        return json.dumps(format_query_results(out))
+        return json.dumps(format_query_results(out, self.thresh))
 
 
 class FullText(Tool):

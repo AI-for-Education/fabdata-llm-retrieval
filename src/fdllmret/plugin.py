@@ -13,6 +13,7 @@ async def retrieval_plugin(
     dbssl: Optional[bool] = None,
     dbauth: Optional[str] = None,
     chunksizes: Optional[Union[int, List[int]]] = None,
+    thresh: float = 1.0,
 ):
     client_kwargs = {}
     if dbhost is not None:
@@ -42,17 +43,27 @@ async def retrieval_plugin(
         chunksizes=chunksizes,
         tags=docenc.tags,
         supp_tags=docenc.supp_tags,
+        thresh=thresh,
     )
-    
+
     return plugin, datastore
 
 
 class RetrievalPlugin(ToolUsePlugin):
     def __init__(
-        self, datastore, json_contents, json_database, chunksizes, tags, supp_tags
+        self,
+        datastore,
+        json_contents,
+        json_database,
+        chunksizes,
+        tags,
+        supp_tags,
+        thresh=1.0,
     ):
         tools = [
-            QueryCatalogue(datastore=datastore, tags=tags, chunksizes=chunksizes),
+            QueryCatalogue(
+                datastore=datastore, tags=tags, chunksizes=chunksizes, thresh=thresh
+            ),
             GetReferences(json_database=json_database),
             FullText(json_database=json_database),
         ]
@@ -65,6 +76,7 @@ class RetrievalPlugin(ToolUsePlugin):
                     json_database=json_database,
                     tags=supp_tags,
                     chunksizes=chunksizes[-1:],
+                    thresh=thresh,
                 ),
             )
         super().__init__(Tools=tools)

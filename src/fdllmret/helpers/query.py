@@ -1,5 +1,6 @@
 from collections import defaultdict
 from types import SimpleNamespace
+import time
 
 import numpy as np
 from fdllm import get_caller
@@ -64,15 +65,19 @@ async def db_query(
         document_id="|".join(include_docs),
     )
     filt_out = DocumentMetadataFilter(document_id="|".join(exclude_docs))
+    st = time.perf_counter()
     q = Query(query=query, top_k=top_k, filter_in=filt_in, filter_out=filt_out)
+    print(f"1: {time.perf_counter() - st}")
     out = (await datastore.query([q]))[0]
     if verbose > 0:
         print([r.metadata.tag for r in out.results])
         print([r.chunksize for r in out.results])
+    st = time.perf_counter()
     if clean_results:
         out.results = [r for r in out.results if len(r.text.split()) > 0]
         if out.results:
             out.results = await remove_duplicate_results(out.results, verbose)
+    print(f"2: {time.perf_counter() - st}")
     return out
 
 
@@ -89,8 +94,8 @@ async def remove_duplicate_results(results, verbose=0):
     return [r for i, r in enumerate(results) if i not in dropidx]
 
 
-def format_query_results(results):
-    res = sorted((r for r in results if r.score < THRESH), key=lambda x: x.score)
+def format_query_results(results, thresh=THRESH):
+    res = sorted((r for r in results if r.score < thresh), key=lambda x: x.score)
     totcost = 0
     res_ = []
     for r in res:
