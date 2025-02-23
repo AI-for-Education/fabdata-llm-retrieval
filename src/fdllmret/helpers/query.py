@@ -20,7 +20,7 @@ async def suppmat_query(
     query,
     IDs,
     tags=["supporting material"],
-    chunksizes=[1000],
+    chunksizes=["1000"],
     top_k=80,
     clean_results=True,
 ):
@@ -52,7 +52,7 @@ async def db_query(
     exclude_docs=[],
     include_docs=[],
     tags=[],
-    chunksize=[800, 1000],
+    chunksize=["800", "1000"],
     top_k=80,
     verbose=0,
     clean_results=True,
@@ -61,7 +61,7 @@ async def db_query(
         print(f"{query}\n")
     filt_in = DocumentMetadataFilter(
         tag="|".join(tags),
-        chunksize="|".join(str(cs) for cs in chunksize),
+        chunksize="|".join(cs for cs in chunksize),
         document_id="|".join(include_docs),
     )
     filt_out = DocumentMetadataFilter(document_id="|".join(exclude_docs))

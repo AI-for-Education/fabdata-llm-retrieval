@@ -13,7 +13,7 @@ class QueryCatalogue(Tool):
     def __init__(
         self,
         tags: List[str] = ["guides", "research", "reviews"],
-        chunksizes: List[int] = [200, 400, 600, 800, 1000],
+        chunksizes: List[str] = ["200", "400", "600", "800", "1000"],
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -59,7 +59,7 @@ class QueryCatalogue(Tool):
         ),
         "chunksize": ToolParam(
             type="array",
-            items=ToolItem(type="integer"),
+            items=ToolItem(type="string"),
             description=(
                 "Chunksizes to filter results by. Only results of these chunksizes will be included."
                 " Smaller chunks are better for finding a broad array of different documents, wheareas larger chunks"

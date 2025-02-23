@@ -13,7 +13,7 @@ async def retrieval_plugin(
     dbport: Optional[int] = None,
     dbssl: Optional[bool] = None,
     dbauth: Optional[str] = None,
-    chunksizes: Optional[Union[int, List[int]]] = None,
+    chunksizes: Optional[Union[str, List[str]]] = None,
     thresh: float = THRESH,
     chunk_budget: int = CHUNK_BUDGET,
 ):
@@ -31,9 +31,9 @@ async def retrieval_plugin(
     docenc = await DocsetEncoding.from_datastore(datastore)
 
     if chunksizes is None:
-        chunksizes = docenc.chunk_sizes
+        chunksizes = [str(cs) for cs in docenc.chunk_sizes]
     else:
-        if isinstance(chunksizes, int):
+        if isinstance(chunksizes, str):
             chunksizes = [chunksizes]
         if not set(chunksizes).issubset(set(docenc.chunk_sizes)):
             raise ValueError("chunksize must be a subset of docenc.docembs.chunk_sizes")
