@@ -5,6 +5,7 @@ import os
 from .datastore.factory import get_datastore
 from .tools import *
 from .helpers.encoding import DocsetEncoding
+from .helpers.query import THRESH, CHUNK_BUDGET
 
 
 async def retrieval_plugin(
@@ -13,7 +14,8 @@ async def retrieval_plugin(
     dbssl: Optional[bool] = None,
     dbauth: Optional[str] = None,
     chunksizes: Optional[Union[int, List[int]]] = None,
-    thresh: float = 1.0,
+    thresh: float = THRESH,
+    chunk_budget: int = CHUNK_BUDGET,
 ):
     client_kwargs = {}
     if dbhost is not None:
@@ -44,6 +46,7 @@ async def retrieval_plugin(
         tags=docenc.tags,
         supp_tags=docenc.supp_tags,
         thresh=thresh,
+        chunk_budget=chunk_budget,
     )
 
     return plugin, datastore
@@ -58,11 +61,16 @@ class RetrievalPlugin(ToolUsePlugin):
         chunksizes,
         tags,
         supp_tags,
-        thresh=1.0,
+        thresh=THRESH,
+        chunk_budget=CHUNK_BUDGET,
     ):
         tools = [
             QueryCatalogue(
-                datastore=datastore, tags=tags, chunksizes=chunksizes, thresh=thresh
+                datastore=datastore,
+                tags=tags,
+                chunksizes=chunksizes,
+                thresh=thresh,
+                chunk_budget=chunk_budget,
             ),
             GetReferences(json_database=json_database),
             FullText(json_database=json_database),
@@ -77,6 +85,7 @@ class RetrievalPlugin(ToolUsePlugin):
                     tags=supp_tags,
                     chunksizes=chunksizes[-1:],
                     thresh=thresh,
+                    chunk_budget=chunk_budget,
                 ),
             )
         super().__init__(Tools=tools)

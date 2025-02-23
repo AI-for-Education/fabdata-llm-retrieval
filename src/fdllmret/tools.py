@@ -6,7 +6,7 @@ from pydantic import Field
 from fuzzywuzzy import fuzz, process
 
 from .datastore.datastore import DataStore
-from .helpers import db_query, suppmat_query, format_query_results
+from .helpers import db_query, suppmat_query, format_query_results, THRESH, CHUNK_BUDGET
 
 
 class QueryCatalogue(Tool):
@@ -71,7 +71,8 @@ class QueryCatalogue(Tool):
 
     datastore: DataStore
     top_k: int = 80
-    thresh: float = 1.0
+    thresh: float = THRESH
+    chunk_budget: int = CHUNK_BUDGET
     clean_results: bool = True
     verbose: int = 0
 
@@ -85,7 +86,11 @@ class QueryCatalogue(Tool):
             clean_results=self.clean_results,
             **params,
         )
-        return json.dumps(format_query_results(out.results, self.thresh))
+        return json.dumps(
+            format_query_results(
+                out.results, thresh=self.thresh, chunk_budget=self.chunk_budget
+            )
+        )
 
 
 class GetContents(Tool):
@@ -150,7 +155,8 @@ class QuerySuppMat(Tool):
     datastore: DataStore
     json_database: Dict | List[Dict]
     top_k: int = 80
-    thresh: float = 1.0
+    thresh: float = THRESH
+    chunk_budget: int = CHUNK_BUDGET
     clean_results: bool = True
     verbose: int = 0
     tags: List[str] = Field(default_factory=lambda: ["supporting material"])
@@ -169,7 +175,11 @@ class QuerySuppMat(Tool):
             chunksizes=self.chunksizes,
             **params,
         )
-        return json.dumps(format_query_results(out, self.thresh))
+        return json.dumps(
+            format_query_results(
+                out, thresh=self.thresh, chunk_budget=self.chunk_budget
+            )
+        )
 
 
 class FullText(Tool):
@@ -189,6 +199,5 @@ class FullText(Tool):
         ft = [rec for rec in self.json_database if rec["id"] == params["ID"]][0]
         if len(ft["text"]) > 60000:
             ft["text"] = ft["text"][:60000] + "..."
-            
-        return json.dumps(ft)
 
+        return json.dumps(ft)

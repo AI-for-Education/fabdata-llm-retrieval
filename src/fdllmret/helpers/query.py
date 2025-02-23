@@ -94,12 +94,12 @@ async def remove_duplicate_results(results, verbose=0):
     return [r for i, r in enumerate(results) if i not in dropidx]
 
 
-def format_query_results(results, thresh=THRESH):
+def format_query_results(results, thresh=THRESH, chunk_budget=CHUNK_BUDGET):
     res = sorted((r for r in results if r.score < thresh), key=lambda x: x.score)
     totcost = 0
     res_ = []
     for r in res:
-        if totcost <= CHUNK_BUDGET:
+        if totcost <= chunk_budget:
             res_.append(r)
             totcost += int(r.chunksize)
         else:
