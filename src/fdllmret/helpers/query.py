@@ -1,12 +1,16 @@
+from typing import Literal
 from collections import defaultdict
 from types import SimpleNamespace
 import time
+import json
 
 import numpy as np
-from fdllm import get_caller
+from fdllm import get_caller, LLMMessage
+from fdllm.llmtypes import LLMCaller
 from fdllm.chat import ChatController
 from fdllm.decorators import delayedretry
 from redis.exceptions import ConnectionError
+from pydantic import BaseModel
 
 from ..models.models import Query, DocumentMetadataFilter
 # from .plugin import RetrievalPlugin
@@ -56,22 +60,32 @@ async def db_query(
     top_k=80,
     verbose=0,
     clean_results=True,
+    **kwargs,
 ):
     if verbose > 0:
         print(f"{query}\n")
+    ## with tags
     filt_in = DocumentMetadataFilter(
         tag="|".join(tags),
+        chunksize="|".join(cs for cs in chunksize),
+        document_id="|".join(include_docs),
+    )
+    ## without tags
+    filt_in_notag = DocumentMetadataFilter(
         chunksize="|".join(cs for cs in chunksize),
         document_id="|".join(include_docs),
     )
     filt_out = DocumentMetadataFilter(document_id="|".join(exclude_docs))
     st = time.perf_counter()
     q = Query(query=query, top_k=top_k, filter_in=filt_in, filter_out=filt_out)
+    q_notag = Query(query=query, top_k=top_k, filter_in=filt_in_notag, filter_out=filt_out)
     print(f"1: {time.perf_counter() - st}")
     out = (await datastore.query([q]))[0]
+    out_notag = (await datastore.query([q_notag]))[0]
     if verbose > 0:
         print([r.metadata.tag for r in out.results])
         print([r.chunksize for r in out.results])
+    out.results = [*out.results, *out_notag.results]
     st = time.perf_counter()
     if clean_results:
         out.results = [r for r in out.results if len(r.text.split()) > 0]
@@ -123,3 +137,57 @@ def format_query_results(results, thresh=THRESH, chunk_budget=CHUNK_BUDGET):
             resp += f"chunk_{i :03d}: {chunk}\n"
         resp += "\n\n"
     return respd
+
+
+
+class RelevanceFormat(BaseModel):
+    class DocRelevance(BaseModel):
+        class ChunkRelevance(BaseModel):
+            query_relevance: Literal["very_low", "low", "medium", "high", "very_high"]
+            intention_relevance: Literal["very_low", "low", "medium", "high", "very_high"]
+        
+        document_id: str
+        overall_query_relevance: Literal["very_low", "low", "medium", "high", "very_high"]
+        overall_intention_relevance: Literal["very_low", "low", "medium", "high", "very_high"]
+        chunk_relevance: list[ChunkRelevance]
+    
+    document_relevance: list[DocRelevance]
+    
+async def results_relevance(results: dict, query: str, intention: str, caller: LLMCaller):
+    instruction = (
+        "Below are some chunks of text that were automatically extracted"
+        " from a catolugue of documents based on a query string."
+        " The query string itself was generated to help a user answer a specific"
+        " question, which we call the 'intention'."
+        " The automatic process has a tendency to pick up irrelevant chunks"
+        " and documents."
+        " Please rate the relevance of each chunk to the query and to the intention and then"
+        " rate the relevance of the document that they appeared in."
+        "\n\n"
+        "<<chunks>>"
+        "\n\n"
+        f"{json.dumps(results)}"
+        "\n\n"
+        "<<query string>>"
+        "\n\n"
+        f"{query}"
+        "\n\n"
+        "<<intention>>"
+        f"{intention}"
+    )
+    msg = LLMMessage(Role="user", Message=instruction)
+    out = await caller.acall(msg, max_tokens=None, response_schema=RelevanceFormat, temperature=0)
+    formatted_out = RelevanceFormat.model_validate_json(out.Message)
+    
+    outres = {}
+    for docrel in formatted_out.document_relevance:
+        if docrel.overall_intention_relevance in ["high", "very_high"]:
+            candoc = results[docrel.document_id]
+            candoc["chunks"] = [
+                chunk for chunk, chunkrel in zip(candoc["chunks"], docrel.chunk_relevance)
+                if chunkrel.intention_relevance in ["high", "very_high"]
+            ]
+            if candoc["chunks"]:
+                outres[docrel.document_id] = candoc
+
+    return outres

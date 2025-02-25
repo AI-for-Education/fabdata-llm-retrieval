@@ -1,12 +1,20 @@
 import json
-from typing import Dict, List
+from typing import Dict, List, Optional
 
+from fdllm.llmtypes import LLMCaller
 from fdllm.tooluse import Tool, ToolParam, ToolItem
 from pydantic import Field
 from fuzzywuzzy import fuzz, process
 
 from .datastore.datastore import DataStore
-from .helpers import db_query, suppmat_query, format_query_results, THRESH, CHUNK_BUDGET
+from .helpers import (
+    db_query,
+    suppmat_query,
+    format_query_results,
+    results_relevance,
+    THRESH,
+    CHUNK_BUDGET,
+)
 
 
 class QueryCatalogue(Tool):
@@ -33,6 +41,15 @@ class QueryCatalogue(Tool):
             description=(
                 "String to query for related text chunks in the catalogue."
                 " The more descriptive it is, the more accurate the results will be."
+            ),
+            required=True,
+        ),
+        "intention": ToolParam(
+            type="string",
+            description=(
+                "What question is the user trying to answer with this query."
+                " If the user asked a direct question, then that is the intention,"
+                " otherwise it should be inferred from the conversation."
             ),
             required=True,
         ),
@@ -75,6 +92,7 @@ class QueryCatalogue(Tool):
     chunk_budget: int = CHUNK_BUDGET
     clean_results: bool = True
     verbose: int = 0
+    relevance_caller: Optional[LLMCaller] = None
 
     def execute(self, **params):
         raise NotImplementedError()
@@ -86,11 +104,20 @@ class QueryCatalogue(Tool):
             clean_results=self.clean_results,
             **params,
         )
-        return json.dumps(
-            format_query_results(
-                out.results, thresh=self.thresh, chunk_budget=self.chunk_budget
-            )
+        if self.relevance_caller is not None:
+            chunk_budget = self.chunk_budget * 4
+        else:
+            chunk_budget = self.chunk_budget
+
+        candidates = format_query_results(
+            out.results, thresh=self.thresh, chunk_budget=chunk_budget
         )
+        if self.relevance_caller is not None:
+            candidates = await results_relevance(
+                candidates, params["query"], params["intention"], self.relevance_caller
+            )
+
+        return json.dumps(candidates)
 
 
 class GetContents(Tool):

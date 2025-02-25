@@ -1,3 +1,4 @@
+from fdllm import get_caller
 from fdllm.tooluse import ToolUsePlugin
 from typing import Optional, Union, List
 import os
@@ -16,6 +17,7 @@ async def retrieval_plugin(
     chunksizes: Optional[Union[str, List[str]]] = None,
     thresh: float = THRESH,
     chunk_budget: int = CHUNK_BUDGET,
+    relevance_model: Optional[str] = None,
 ):
     client_kwargs = {}
     if dbhost is not None:
@@ -38,6 +40,10 @@ async def retrieval_plugin(
         if not set(chunksizes).issubset(set(docenc.chunk_sizes)):
             raise ValueError("chunksize must be a subset of docenc.docembs.chunk_sizes")
 
+    if relevance_model is not None:
+        relevance_caller = get_caller(relevance_model)
+    else:
+        relevance_caller = None
     plugin = RetrievalPlugin(
         datastore=datastore,
         json_contents=docenc.contents,
@@ -47,6 +53,7 @@ async def retrieval_plugin(
         supp_tags=docenc.supp_tags,
         thresh=thresh,
         chunk_budget=chunk_budget,
+        relevance_caller=relevance_caller,
     )
 
     return plugin, datastore
@@ -63,6 +70,7 @@ class RetrievalPlugin(ToolUsePlugin):
         supp_tags,
         thresh=THRESH,
         chunk_budget=CHUNK_BUDGET,
+        relevance_caller=None,
     ):
         tools = [
             QueryCatalogue(
@@ -71,6 +79,7 @@ class RetrievalPlugin(ToolUsePlugin):
                 chunksizes=chunksizes,
                 thresh=thresh,
                 chunk_budget=chunk_budget,
+                relevance_caller=relevance_caller,
             ),
             GetReferences(json_database=json_database),
             FullText(json_database=json_database),
