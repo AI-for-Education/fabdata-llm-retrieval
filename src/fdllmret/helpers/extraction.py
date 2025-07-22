@@ -164,6 +164,12 @@ def _load_metad(path):
 
 
 def _extract_text_html(file):
+    def extract(encoding="utf-8"):
+        with open(file, encoding=encoding) as f:
+            content = f.read()
+            soup = BeautifulSoup(content, "lxml")
+            text = soup.text
+        return text
     if isinstance(file, str):
         with StringIO(file) as f:
             return _extract_text_html(f)
@@ -172,10 +178,13 @@ def _extract_text_html(file):
             name = file.name
         else:
             name = None
-        with open(file) as f:
-            content = f.read()
-            soup = BeautifulSoup(content, "lxml")
-            text = soup.text
+        try:
+            text = extract()
+        except:
+            try:
+                text = extract(encoding="latin-1")
+            except:
+                raise
         return name, text
 
 
