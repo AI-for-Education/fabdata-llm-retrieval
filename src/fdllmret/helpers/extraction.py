@@ -269,7 +269,7 @@ def extract_text_folders(
                 *extract_text(file, exts, parent, pdfengine),
                 tags,
                 metad,
-                [],
+                None,
                 str(uuid.uuid4()),
             )
         else:
