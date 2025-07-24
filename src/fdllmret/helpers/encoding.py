@@ -222,8 +222,9 @@ class DocsetEncoding:
     def tags(self):
         tags = set()
         for doc in self.jsondata:
-            tags.update(doc["tag"].split(","))
-        if not any(tg for tg in tags):
+            if doc.get("tag", ""):
+                tags.update(doc["tag"].split(","))
+        if len(tags) == 0 or not any(tg for tg in tags):
             tags = None
         else:
             tags = sorted(tags)
